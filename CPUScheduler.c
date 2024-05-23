@@ -182,3 +182,158 @@ void simulate_fcfs(Queue *cpu_queue, char *cpu_name, int *cpu_ram, int *cpu_rate
     }
 }
 
+
+// Function to simulate SJF (Shortest Job First) scheduling
+void simulate_sjf(Queue *cpu_queue, char *cpu_name, int *cpu_ram, int *cpu_rate, ProcessLog *log) {
+    // Sort processes by burst time (Shortest Job First)
+    for (int i = 0; i < cpu_queue->count - 1; i++) {
+        for (int j = i + 1; j < cpu_queue->count; j++) {
+            // Compare burst times and swap if necessary to ensure the process with the shortest burst time comes first
+            if (cpu_queue->processes[i].burst_time > cpu_queue->processes[j].burst_time) {
+                Process temp = cpu_queue->processes[i];
+                cpu_queue->processes[i] = cpu_queue->processes[j];
+                cpu_queue->processes[j] = temp;
+            }
+        }
+    }
+
+    // Execute processes in order of shortest burst time first
+    for (int i = 0; i < cpu_queue->count; i++) {
+        Process process = cpu_queue->processes[i];  // Get the next process in the queue
+
+         // Check the resources
+       while (!check_resources(process.ram, *cpu_ram, process.cpu_rate, *cpu_rate)) {
+            // The application will terminate here if resources are insufficient for any process
+          log_process_state("Insufficient resources for process %s", process.id);
+        exit(0); // Terminate the application if resources are insufficient
+        }
+
+        // Allocate resources to the process
+        *cpu_ram -= process.ram;
+        *cpu_rate -= process.cpu_rate;
+
+        // Log the state of the process as it is queued, assigned, and completed
+        log_process_state("Process %s is queued to be assigned to %s.", process.id, cpu_name);
+        log_process_state("Process %s is assigned to %s.", process.id, cpu_name);
+        log_process_state("Process %s is completed and terminated.", process.id);
+
+        // Add the process ID to the log
+        strcpy(log->ids[log->count++], process.id);
+
+        // Release the resources allocated to the process
+        *cpu_ram += process.ram;
+        *cpu_rate += process.cpu_rate;
+    }
+}
+
+// Function to simulate Round Robin scheduling
+void simulate_round_robin(Queue *cpu_queue, char *cpu_name, int time_quantum, int *cpu_ram, int *cpu_rate, ProcessLog *log) {
+    int time = 0;  // Current time in the simulation
+
+    // Loop until all processes have been processed
+    while (cpu_queue->count > 0) {
+        Process process = cpu_queue->processes[0];  // Get the first process in the queue
+
+       // Check the resources
+       while (!check_resources(process.ram, *cpu_ram, process.cpu_rate, *cpu_rate)) {
+            // The application will terminate here if resources are insufficient for any process
+          log_process_state("Insufficient resources for process %s", process.id);
+        exit(0); // Terminate the application if resources are insufficient
+        }
+
+        // Allocate resources to the process
+        *cpu_ram -= process.ram;
+        *cpu_rate -= process.cpu_rate;
+
+        // Log that the process is being queued to the CPU
+        log_process_state("Process %s is queued to be assigned to %s.", process.id, cpu_name);
+
+        // If the process requires more time than the time quantum
+        if (process.burst_time > time_quantum) {
+            // Log that the process is being assigned for a quantum of time
+            log_process_state("Process %s is assigned to %s for %d time units.", process.id, cpu_name, time_quantum);
+
+            process.burst_time -= time_quantum;  // Decrease the burst time by the time quantum
+            time += time_quantum;  // Increment the simulation time
+
+            // Log that the process is preempted and will continue later
+            log_process_state("Process %s is preempted and will continue later.", process.id);
+
+            // Move the process to the end of the queue
+            for (int i = 0; i < cpu_queue->count - 1; i++) {
+                cpu_queue->processes[i] = cpu_queue->processes[i + 1];
+            }
+            cpu_queue->processes[cpu_queue->count - 1] = process;
+        } else {
+            // Log that the process is being assigned for the remainder of its burst time
+            log_process_state("Process %s is assigned to %s for %d time units.", process.id, cpu_name, process.burst_time);
+
+            time += process.burst_time;  // Increment the simulation time by the burst time
+
+            // Log that the process is completed
+            log_process_state("Process %s is completed and terminated.", process.id);
+
+            // Add the process ID to the log
+            strcpy(log->ids[log->count++], process.id);
+
+            // Remove the process from the queue
+            for (int i = 0; i < cpu_queue->count - 1; i++) {
+                cpu_queue->processes[i] = cpu_queue->processes[i + 1];
+            }
+            cpu_queue->count--;
+        }
+
+        // Release the resources allocated to the process
+        *cpu_ram += process.ram;
+        *cpu_rate += process.cpu_rate;
+    }
+}
+
+// Function to log process state
+void log_process_state(const char *format, ...) {
+    va_list args;
+    va_start(args, format);
+    vprintf(format, args);
+    printf("\n");
+    va_end(args);
+}
+
+// Function to print process logs
+void print_process_logs(ProcessLog cpu1_log, ProcessLog cpu2_logs[]) {
+    printf("CPU-1 que1 (priority-0) (FCFS) --> ");
+    for (int i = 0; i < cpu1_log.count; i++) {
+        printf("%s", cpu1_log.ids[i]);
+        if (i < cpu1_log.count - 1) {
+            printf("-");
+        }
+    }
+    printf("\n");
+
+    printf("CPU-2 que2 (priority-1) (SJF) --> ");
+    for (int i = 0; i < cpu2_logs[0].count; i++) {
+        printf("%s", cpu2_logs[0].ids[i]);
+        if (i < cpu2_logs[0].count - 1) {
+            printf("-");
+        }
+    }
+    printf("\n");
+
+    printf("CPU-2 que3 (priority-2) (RR-q8) --> ");
+    for (int i = 0; i < cpu2_logs[1].count; i++) {
+        printf("%s", cpu2_logs[1].ids[i]);
+        if (i < cpu2_logs[1].count - 1) {
+            printf("-");
+        }
+    }
+    printf("\n");
+
+    printf("CPU-2 que4 (priority-3) (RR-q16) --> ");
+    for (int i = 0; i < cpu2_logs[2].count; i++) {
+        printf("%s", cpu2_logs[2].ids[i]);
+        if (i < cpu2_logs[2].count - 1) {
+            printf("-");
+        }
+    }
+    printf("\n");
+}
+
