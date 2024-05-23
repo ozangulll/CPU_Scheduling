@@ -96,3 +96,89 @@ int main(int argc, char *argv[]) {
 
     return 0;
 }
+
+// Function to read input file and populate the input queue
+void read_input_file(char *filename, Queue *queue) {
+    FILE *file = fopen(filename, "r");
+    if (!file) {
+        perror("Failed to open input file");
+        exit(1);
+    }
+
+    char line[100];
+    while (fgets(line, sizeof(line), file)) {
+        Process process;
+        sscanf(line, "%[^,],%d,%d,%d,%d,%d",
+               process.id, &process.arrival_time, &process.priority,
+               &process.burst_time, &process.ram, &process.cpu_rate);
+        queue->processes[queue->count++] = process;
+    }
+
+    fclose(file);
+}
+
+// Function to allocate processes to CPU1 and CPU2 queues based on priority
+void allocate_processes(Queue *input_queue, Queue *cpu1_queue, Queue *cpu2_queues[]) {
+    // Sort processes by arrival time
+    for (int i = 0; i < input_queue->count - 1; i++) {
+        for (int j = i + 1; j < input_queue->count; j++) {
+            if (input_queue->processes[i].arrival_time > input_queue->processes[j].arrival_time) {
+                Process temp = input_queue->processes[i];
+                input_queue->processes[i] = input_queue->processes[j];
+                input_queue->processes[j] = temp;
+            }
+        }
+    }
+
+    // Iterate over all processes in the input queue
+    for (int i = 0; i < input_queue->count; i++) {
+        Process process = input_queue->processes[i];  // Get the current process
+
+        // Check the priority of the process
+        if (process.priority == 0) {
+            // Assign processes with priority 0 to CPU1 queue
+            cpu1_queue->processes[cpu1_queue->count++] = process;
+        } else {
+            // Assign processes with priority 1, 2, or 3 to corresponding CPU2 queues
+            int queue_index = process.priority - 1;
+            cpu2_queues[queue_index]->processes[cpu2_queues[queue_index]->count++] = process;
+        }
+    }
+}
+
+// Function to check if required resources are available (RAM, CPU rate)
+int check_resources(int required_ram, int available_ram, int required_cpu_rate, int available_cpu_rate) {
+    // Return true if both required RAM and CPU rate are less than or equal to available resources
+    return required_ram <= available_ram && required_cpu_rate <= available_cpu_rate;
+}
+
+// Function to simulate FCFS (First-Come, First-Served) scheduling
+void simulate_fcfs(Queue *cpu_queue, char *cpu_name, int *cpu_ram, int *cpu_rate, ProcessLog *log) {
+    // Iterate over all processes in the CPU queue
+    for (int i = 0; i < cpu_queue->count; i++) {
+        Process process = cpu_queue->processes[i];  // Get the current process
+
+       // Check the resources
+       while (!check_resources(process.ram, *cpu_ram, process.cpu_rate, *cpu_rate)) {
+            // The application will terminate here if resources are insufficient for any process
+          log_process_state("Insufficient resources for process %s", process.id);
+         exit(0); // Terminate the application if resources are insufficient
+        }
+        // Allocate resources to the process
+        *cpu_ram -= process.ram;
+        *cpu_rate -= process.cpu_rate;
+
+        // Log the state of the process as it is queued, assigned, and completed
+        log_process_state("Process %s is queued to be assigned to %s.", process.id, cpu_name);
+        log_process_state("Process %s is assigned to %s.", process.id, cpu_name);
+        log_process_state("Process %s is completed and terminated.", process.id);
+
+        // Add the process ID to the log
+        strcpy(log->ids[log->count++], process.id);
+
+        // Release the resources allocated to the process
+        *cpu_ram += process.ram;
+        *cpu_rate += process.cpu_rate;
+    }
+}
+
